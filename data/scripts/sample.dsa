@@ -1,0 +1,30 @@
+﻿create stack s
+create queue q
+create deque d
+create avl t
+
+watch s
+watch q
+watch d
+watch t
+
+push s 10
+push s 20
+peek s
+pop s
+
+enqueue q 5
+enqueue q 8
+front q
+dequeue q
+
+push_front d 3
+push_back d 7
+push_front d 1
+pop_back d
+
+insert t 30
+insert t 20
+insert t 10
+insert t 25
+search t 25
