@@ -3,7 +3,8 @@
 #include <stdio.h>
 #include <string.h>
 
-static void print_frame(Frame *frame, int current_index, int total_frames) {
+static void print_frame(Frame *frame, int current_index, int total_frames)
+{
     int i;
 
     printf("========================================\n");
@@ -13,65 +14,86 @@ static void print_frame(Frame *frame, int current_index, int total_frames) {
     printf("Note: %s\n", frame->note);
     printf("========================================\n\n");
 
-    for (i = 0; i < frame->line_count; i++) {
+    for (i = 0; i < frame->line_count; i++)
+    {
         printf("%s\n", frame->lines[i]);
     }
 
     printf("\n[a] previous   [d] next   [q] quit\n");
 }
 
-static void run_frame_viewer(ProgramState *state) {
+static void run_frame_viewer(ProgramState *state)
+{
     int current = 0;
     char input[32];
 
-    if (state->frame_count == 0) {
-        printf("No frames were created. Maybe nothing was watched.\n");
+    // If nothing was watched, there may be no operation frames
+    if (state->frame_count == 0)
+    {
+        printf("No frames were created.\n");
         return;
     }
 
-    while (1) {
-        clear_screen();
+    while (1)
+    {
+        // I stopped using cls here cuz it gets weird in CLion sometimes
+        printf("\n\n");
         print_frame(&state->frames[current], current, state->frame_count);
 
-        if (fgets(input, sizeof(input), stdin) == NULL) {
-            break;
+        if (fgets(input, sizeof(input), stdin) == NULL)
+        {
+            return;
         }
 
-        if (input[0] == 'q' || input[0] == 'Q') {
-            break;
-        } else if (input[0] == 'a' || input[0] == 'A') {
-            if (current > 0) {
+        // a = back, d = next, q = quit
+        if (input[0] == 'q' || input[0] == 'Q')
+        {
+            return;
+        }
+        else if (input[0] == 'a' || input[0] == 'A')
+        {
+            if (current > 0)
+            {
                 current--;
             }
-        } else if (input[0] == 'd' || input[0] == 'D') {
-            if (current < state->frame_count - 1) {
+        }
+        else if (input[0] == 'd' || input[0] == 'D')
+        {
+            if (current < state->frame_count - 1)
+            {
                 current++;
             }
         }
     }
 }
 
-int main(void) {
+int main()
+{
     ProgramState state;
     char path[INPUT_LINE_LEN];
 
     init_program_state(&state);
 
     printf("Enter path to .dsa file:\n");
-    if (fgets(path, sizeof(path), stdin) == NULL) {
+
+    if (fgets(path, sizeof(path), stdin) == NULL)
+    {
         printf("Could not read path.\n");
         return 1;
     }
 
-    path[strcspn(path, "\r\n")] = '\0';
+    path[strcspn(path, "\r\n")] = '\0'; // fgets includes the newline so remove that shit
 
-    if (!parse_file_and_build_frames(&state, path)) {
+    if (!parse_file(&state, path))
+    {
         printf("Error: %s\n", state.last_error);
         free_all_trees(&state);
         return 1;
     }
 
     run_frame_viewer(&state);
+
+    // Free AVL tree memory before ending the program
     free_all_trees(&state);
     return 0;
 }

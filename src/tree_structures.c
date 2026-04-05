@@ -4,73 +4,88 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define TREE_QUEUE_CAP 256
+
 typedef struct {
     AVLNode *items[TREE_QUEUE_CAP];
     int front;
     int rear;
 } NodeQueue;
 
-static void nq_init(NodeQueue *q) {
-    q->front = 0;
-    q->rear = 0;
+static void nq_init(NodeQueue *queue)
+{
+    queue->front = 0;
+    queue->rear = 0;
 }
 
-static int nq_is_empty(NodeQueue *q) {
-    return q->front == q->rear;
+static int nq_is_empty(NodeQueue *queue)
+{
+    return queue->front == queue->rear;
 }
 
-static int nq_push(NodeQueue *q, AVLNode *node) {
-    int next = (q->rear + 1) % TREE_QUEUE_CAP;
-
-    if (next == q->front) {
-        return 0;
+static int nq_size(NodeQueue *queue)
+{
+    if (queue->rear >= queue->front)
+    {
+        return queue->rear - queue->front;
     }
 
-    q->items[q->rear] = node;
-    q->rear = next;
-    return 1;
+    return TREE_QUEUE_CAP - queue->front + queue->rear;
 }
 
-static AVLNode *nq_pop(NodeQueue *q) {
+static void nq_push(NodeQueue *queue, AVLNode *node)
+{
+    int next = (queue->rear + 1) % TREE_QUEUE_CAP;
+
+    if (next == queue->front)
+    {
+        return;
+    }
+
+    queue->items[queue->rear] = node;
+    queue->rear = next;
+}
+
+static AVLNode *nq_pop(NodeQueue *queue)
+{
     AVLNode *node;
 
-    if (nq_is_empty(q)) {
+    if (nq_is_empty(queue))
+    {
         return NULL;
     }
 
-    node = q->items[q->front];
-    q->front = (q->front + 1) % TREE_QUEUE_CAP;
+    node = queue->items[queue->front];
+    queue->front = (queue->front + 1) % TREE_QUEUE_CAP;
     return node;
 }
 
-static int nq_size(NodeQueue *q) {
-    if (q->rear >= q->front) {
-        return q->rear - q->front;
-    }
-
-    return TREE_QUEUE_CAP - q->front + q->rear;
-}
-
-static int height(AVLNode *node) {
-    if (node == NULL) {
+static int height(AVLNode *node)
+{
+    if (node == NULL)
+    {
         return 0;
     }
 
     return node->height;
 }
 
-static int max_int(int a, int b) {
-    if (a > b) {
+static int max_int(int a, int b)
+{
+    if (a > b)
+    {
         return a;
     }
 
     return b;
 }
 
-static AVLNode *new_node(int value) {
+static AVLNode *create_node(int value)
+{
     AVLNode *node = (AVLNode *)malloc(sizeof(AVLNode));
 
-    if (node == NULL) {
+    if (node == NULL)
+    {
         return NULL;
     }
 
@@ -78,26 +93,32 @@ static AVLNode *new_node(int value) {
     node->height = 1;
     node->left = NULL;
     node->right = NULL;
+
     return node;
 }
 
-static void update_height(AVLNode *node) {
-    if (node == NULL) {
+static void update_height(AVLNode *node)
+{
+    if (node == NULL)
+    {
         return;
     }
 
     node->height = 1 + max_int(height(node->left), height(node->right));
 }
 
-static int get_balance(AVLNode *node) {
-    if (node == NULL) {
+static int get_balance(AVLNode *node)
+{
+    if (node == NULL)
+    {
         return 0;
     }
 
     return height(node->left) - height(node->right);
 }
 
-static AVLNode *rotate_right(AVLNode *y) {
+static AVLNode *rotate_right(AVLNode *y)
+{
     AVLNode *x = y->left;
     AVLNode *t2 = x->right;
 
@@ -106,10 +127,12 @@ static AVLNode *rotate_right(AVLNode *y) {
 
     update_height(y);
     update_height(x);
+
     return x;
 }
 
-static AVLNode *rotate_left(AVLNode *x) {
+static AVLNode *rotate_left(AVLNode *x)
+{
     AVLNode *y = x->right;
     AVLNode *t2 = y->left;
 
@@ -118,58 +141,76 @@ static AVLNode *rotate_left(AVLNode *x) {
 
     update_height(x);
     update_height(y);
+
     return y;
 }
 
-static AVLNode *insert_node(AVLNode *node, int value, char *note, int note_size, int *ok) {
+static AVLNode *insert_node(AVLNode *node,
+                            int value,
+                            char *note,
+                            int note_size,
+                            int *ok)
+{
     int balance;
 
-    if (node == NULL) {
-        AVLNode *created = new_node(value);
+    if (node == NULL)
+    {
+        AVLNode *new_node = create_node(value);
 
-        if (created == NULL) {
+        if (new_node == NULL)
+        {
             *ok = 0;
             snprintf(note, note_size, "Could not allocate AVL node");
-        } else {
-            snprintf(note, note_size, "Inserted %d as a new node", value);
+            return NULL;
         }
 
-        return created;
+        snprintf(note, note_size, "Inserted %d as a new node", value);
+        return new_node;
     }
 
-    if (value < node->key) {
+    if (value < node->key)
+    {
         node->left = insert_node(node->left, value, note, note_size, ok);
-    } else if (value > node->key) {
+    }
+    else if (value > node->key)
+    {
         node->right = insert_node(node->right, value, note, note_size, ok);
-    } else {
+    }
+    else
+    {
         snprintf(note, note_size, "Value %d is already in the tree", value);
         return node;
     }
 
-    if (!*ok) {
+    if (!*ok)
+    {
         return node;
     }
 
     update_height(node);
     balance = get_balance(node);
 
-    if (balance > 1 && value < node->left->key) {
+    if (balance > 1 && value < node->left->key)
+    {
         snprintf(note, note_size, "LL imbalance at %d, rotate right", node->key);
         return rotate_right(node);
     }
 
-    if (balance < -1 && value > node->right->key) {
+    if (balance < -1 && value > node->right->key)
+    {
         snprintf(note, note_size, "RR imbalance at %d, rotate left", node->key);
         return rotate_left(node);
     }
 
-    if (balance > 1 && value > node->left->key) {
+    if (balance > 1 && value > node->left->key)
+    {
         snprintf(note, note_size, "LR imbalance at %d, rotate left then right", node->key);
         node->left = rotate_left(node->left);
         return rotate_right(node);
     }
 
-    if (balance < -1 && value < node->right->key) {
+    if (balance < -1 && value < node->right->key)
+    {
         snprintf(note, note_size, "RL imbalance at %d, rotate right then left", node->key);
         node->right = rotate_right(node->right);
         return rotate_left(node);
@@ -179,27 +220,37 @@ static AVLNode *insert_node(AVLNode *node, int value, char *note, int note_size,
     return node;
 }
 
-void init_avl(AVLTree *tree) {
+void init_avl(AVLInfo *tree)
+{
     tree->root = NULL;
 }
 
-int avl_insert_value(AVLTree *tree, int value, char *note, int note_size) {
+int avl_insert_value(AVLInfo *tree, int value, char *note, int note_size)
+{
     int ok = 1;
+
     tree->root = insert_node(tree->root, value, note, note_size, &ok);
+
     return ok;
 }
 
-int avl_search_value(AVLTree *tree, int value) {
+int avl_search_value(AVLInfo *tree, int value)
+{
     AVLNode *current = tree->root;
 
-    while (current != NULL) {
-        if (value == current->key) {
+    while (current != NULL)
+    {
+        if (value == current->key)
+        {
             return 1;
         }
 
-        if (value < current->key) {
+        if (value < current->key)
+        {
             current = current->left;
-        } else {
+        }
+        else
+        {
             current = current->right;
         }
     }
@@ -207,96 +258,91 @@ int avl_search_value(AVLTree *tree, int value) {
     return 0;
 }
 
-void free_avl_nodes(AVLNode *node) {
-    if (node == NULL) {
+void build_avl_frame(ProgramState *state, AVLInfo *tree, const char *operation, const char *note)
+{
+    Frame *frame;
+    NodeQueue queue;
+    char line[MAX_LINE_TEXT];
+    int level;
+
+    if (!tree->watched)
+    {
+        return;
+    }
+
+    frame = start_frame(state, tree->name, operation, note);
+
+    if (frame == NULL)
+    {
+        return;
+    }
+
+    add_line_to_frame(frame, "AVL tree levels:");
+
+    if (tree->root == NULL)
+    {
+        add_line_to_frame(frame, "Level 0: .");
+        return;
+    }
+
+    nq_init(&queue);
+    nq_push(&queue, tree->root);
+    level = 0;
+
+    while (!nq_is_empty(&queue))
+    {
+        int nodes_this_level;
+        int i;
+        int has_real_next_level;
+        char temp[MAX_LINE_TEXT];
+
+        nodes_this_level = nq_size(&queue);
+        has_real_next_level = 0;
+
+        snprintf(temp, sizeof(temp), "Level %d: ", level);
+
+        for (i = 0; i < nodes_this_level; i++)
+        {
+            AVLNode *node = nq_pop(&queue);
+
+            if (node == NULL)
+            {
+                strncat(temp, ". ", sizeof(temp) - strlen(temp) - 1);
+            }
+            else
+            {
+                snprintf(line, sizeof(line), "%d ", node->key);
+                strncat(temp, line, sizeof(temp) - strlen(temp) - 1);
+
+                nq_push(&queue, node->left);
+                nq_push(&queue, node->right);
+
+                if (node->left != NULL || node->right != NULL)
+                {
+                    has_real_next_level = 1;
+                }
+            }
+        }
+
+        add_line_to_frame(frame, temp);
+        level++;
+
+        // Stop after the last level that leads to real children
+        if (!has_real_next_level)
+        {
+            break;
+        }
+    }
+}
+
+void free_avl_nodes(AVLNode *node)
+{
+    if (node == NULL)
+    {
         return;
     }
 
     free_avl_nodes(node->left);
     free_avl_nodes(node->right);
     free(node);
-}
-
-void build_avl_frame(ProgramState *state, Structure *st, const char *operation, const char *note) {
-    Frame *frame;
-    char line[MAX_LINE_LEN];
-    NodeQueue q;
-    int level;
-    int nodes_this_level;
-    int i;
-    int has_real_next_level;
-
-    if (!st->watched || state->frame_count >= MAX_FRAMES) {
-        return;
-    }
-
-    frame = &state->frames[state->frame_count];
-    frame->step_number = state->frame_count + 1;
-
-    strncpy(frame->structure_name, st->name, MAX_NAME_LEN - 1);
-    frame->structure_name[MAX_NAME_LEN - 1] = '\0';
-
-    strncpy(frame->operation, operation, sizeof(frame->operation) - 1);
-    frame->operation[sizeof(frame->operation) - 1] = '\0';
-
-    strncpy(frame->note, note, sizeof(frame->note) - 1);
-    frame->note[sizeof(frame->note) - 1] = '\0';
-
-    frame->line_count = 0;
-
-    snprintf(line, sizeof(line), "AVL tree: %s", st->name);
-    strncpy(frame->lines[frame->line_count++], line, MAX_LINE_LEN - 1);
-
-    if (st->avl.root == NULL) {
-        strncpy(frame->lines[frame->line_count++], "Level 0: .", MAX_LINE_LEN - 1);
-        state->frame_count++;
-        return;
-    }
-
-    nq_init(&q);
-    nq_push(&q, st->avl.root);
-    level = 0;
-
-    while (!nq_is_empty(&q) && frame->line_count < MAX_FRAME_LINES) {
-        char temp[MAX_LINE_LEN];
-        temp[0] = '\0';
-
-        snprintf(line, sizeof(line), "Level %d: ", level);
-        strncat(temp, line, sizeof(temp) - strlen(temp) - 1);
-
-        nodes_this_level = nq_size(&q);
-        has_real_next_level = 0;
-
-        for (i = 0; i < nodes_this_level; i++) {
-            AVLNode *node = nq_pop(&q);
-
-            if (node == NULL) {
-                strncat(temp, ". ", sizeof(temp) - strlen(temp) - 1);
-                nq_push(&q, NULL);
-                nq_push(&q, NULL);
-            } else {
-                snprintf(line, sizeof(line), "%d ", node->key);
-                strncat(temp, line, sizeof(temp) - strlen(temp) - 1);
-
-                nq_push(&q, node->left);
-                nq_push(&q, node->right);
-
-                if (node->left != NULL || node->right != NULL) {
-                    has_real_next_level = 1;
-                }
-            }
-        }
-
-        strncpy(frame->lines[frame->line_count], temp, MAX_LINE_LEN - 1);
-        frame->lines[frame->line_count][MAX_LINE_LEN - 1] = '\0';
-        frame->line_count++;
-
-        level++;
-
-        if (!has_real_next_level) {
-            break;
-        }
-    }
-
-    state->frame_count++;
 }

@@ -3,279 +3,304 @@
 #include <stdio.h>
 #include <string.h>
 
-static void start_frame(Frame *frame, ProgramState *state, Structure *st, const char *operation, const char *note) {
-    if (state->frame_count >= MAX_FRAMES) {
-        return;
-    }
-
-    frame->step_number = state->frame_count + 1;
-
-    strncpy(frame->structure_name, st->name, MAX_NAME_LEN - 1);
-    frame->structure_name[MAX_NAME_LEN - 1] = '\0';
-
-    strncpy(frame->operation, operation, sizeof(frame->operation) - 1);
-    frame->operation[sizeof(frame->operation) - 1] = '\0';
-
-    strncpy(frame->note, note, sizeof(frame->note) - 1);
-    frame->note[sizeof(frame->note) - 1] = '\0';
-
-    frame->line_count = 0;
+void init_stack(StackInfo *stack)
+{
+    stack->top = -1;
 }
 
-static void add_line(Frame *frame, const char *text) {
-    if (frame->line_count >= MAX_FRAME_LINES) {
-        return;
-    }
 
-    strncpy(frame->lines[frame->line_count], text, MAX_LINE_LEN - 1);
-    frame->lines[frame->line_count][MAX_LINE_LEN - 1] = '\0';
-    frame->line_count++;
-}
-
-void init_stack(Stack *s) {
-    s->top = -1;
-}
-
-int push_stack(Stack *s, int value) {
-    if (s->top >= STACK_CAP - 1) {
+int push_stack(StackInfo *stack, int value)
+{
+    if (stack->top >= LINEAR_CAP - 1)
+    {
         return 0;
     }
 
-    s->top++;
-    s->data[s->top] = value;
+    stack->top++;
+    stack->data[stack->top] = value;
     return 1;
 }
 
-int pop_stack(Stack *s, int *out_value) {
-    if (s->top < 0) {
+int pop_stack(StackInfo *stack, int *out_value)
+{
+    if (stack->top < 0)
+    {
         return 0;
     }
 
-    *out_value = s->data[s->top];
-    s->top--;
+    *out_value = stack->data[stack->top];
+    stack->top--;
     return 1;
 }
 
-int peek_stack(Stack *s, int *out_value) {
-    if (s->top < 0) {
+int peek_stack(StackInfo *stack, int *out_value)
+{
+    if (stack->top < 0)
+    {
         return 0;
     }
 
-    *out_value = s->data[s->top];
+    *out_value = stack->data[stack->top];
     return 1;
 }
 
-void build_stack_frame(ProgramState *state, Structure *st, const char *operation, const char *note) {
+void build_stack_frame(ProgramState *state, StackInfo *stack, const char *operation, const char *note)
+{
     Frame *frame;
-    char line[MAX_LINE_LEN];
+    char line[MAX_LINE_TEXT];
     int i;
 
-    if (!st->watched || state->frame_count >= MAX_FRAMES) {
+    // Only watched structures create operation frames
+    if (!stack->watched)
+    {
         return;
     }
 
-    frame = &state->frames[state->frame_count];
-    start_frame(frame, state, st, operation, note);
+    frame = start_frame(state, stack->name, operation, note);
 
-    snprintf(line, sizeof(line), "Stack: %s", st->name);
-    add_line(frame, line);
-
-    if (st->stack.top < 0) {
-        add_line(frame, "[empty]");
-    } else {
-        for (i = st->stack.top; i >= 0; i--) {
-            if (i == st->stack.top) {
-                snprintf(line, sizeof(line), "[%d]  <- top", st->stack.data[i]);
-            } else {
-                snprintf(line, sizeof(line), "[%d]", st->stack.data[i]);
-            }
-            add_line(frame, line);
-        }
-    }
-
-    state->frame_count++;
-}
-
-void init_queue(Queue *q) {
-    q->front = 0;
-    q->rear = 0;
-    q->size = 0;
-}
-
-int enqueue_queue(Queue *q, int value) {
-    if (q->size >= QUEUE_CAP) {
-        return 0;
-    }
-
-    q->data[q->rear] = value;
-    q->rear = (q->rear + 1) % QUEUE_CAP;
-    q->size++;
-    return 1;
-}
-
-int dequeue_queue(Queue *q, int *out_value) {
-    if (q->size <= 0) {
-        return 0;
-    }
-
-    *out_value = q->data[q->front];
-    q->front = (q->front + 1) % QUEUE_CAP;
-    q->size--;
-    return 1;
-}
-
-int front_queue(Queue *q, int *out_value) {
-    if (q->size <= 0) {
-        return 0;
-    }
-
-    *out_value = q->data[q->front];
-    return 1;
-}
-
-void build_queue_frame(ProgramState *state, Structure *st, const char *operation, const char *note) {
-    Frame *frame;
-    char line[MAX_LINE_LEN];
-    char temp[MAX_LINE_LEN];
-    int i;
-    int index;
-
-    if (!st->watched || state->frame_count >= MAX_FRAMES) {
+    if (frame == NULL)
+    {
         return;
     }
 
-    frame = &state->frames[state->frame_count];
-    start_frame(frame, state, st, operation, note);
+    add_line_to_frame(frame, "Stack state:");
 
-    snprintf(line, sizeof(line), "Queue: %s", st->name);
-    add_line(frame, line);
+    if (stack->top < 0)
+    {
+        add_line_to_frame(frame, "[empty]");
+        return;
+    }
 
-    if (st->queue.size == 0) {
-        add_line(frame, "[empty]");
-    } else {
-        temp[0] = '\0';
-
-        for (i = 0; i < st->queue.size; i++) {
-            index = (st->queue.front + i) % QUEUE_CAP;
-
-            if (i == 0) {
-                snprintf(line, sizeof(line), "[%d]", st->queue.data[index]);
-            } else {
-                snprintf(line, sizeof(line), " -> [%d]", st->queue.data[index]);
-            }
-
-            strncat(temp, line, sizeof(temp) - strlen(temp) - 1);
+    // print from top to bottom
+    for (i = stack->top; i >= 0; i--)
+    {
+        if (i == stack->top)
+        {
+            snprintf(line, sizeof(line), "[%d]  <- top", stack->data[i]);
+        }
+        else
+        {
+            snprintf(line, sizeof(line), "[%d]", stack->data[i]);
         }
 
-        add_line(frame, temp);
-
-        snprintf(line, sizeof(line), "front = %d", st->queue.data[st->queue.front]);
-        add_line(frame, line);
-
-        index = (st->queue.rear - 1 + QUEUE_CAP) % QUEUE_CAP;
-        snprintf(line, sizeof(line), "rear  = %d", st->queue.data[index]);
-        add_line(frame, line);
+        add_line_to_frame(frame, line);
     }
-
-    state->frame_count++;
 }
 
-void init_deque(Deque *d) {
-    d->front = 0;
-    d->rear = 0;
-    d->size = 0;
+void init_queue(QueueInfo *queue)
+{
+    queue->front = 0;
+    queue->rear = 0;
+    queue->size = 0;
 }
 
-int push_front_deque(Deque *d, int value) {
-    if (d->size >= DEQUE_CAP) {
+int enqueue_queue(QueueInfo *queue, int value)
+{
+    if (queue->size >= LINEAR_CAP)
+    {
         return 0;
     }
 
-    d->front = (d->front - 1 + DEQUE_CAP) % DEQUE_CAP;
-    d->data[d->front] = value;
-    d->size++;
+    queue->data[queue->rear] = value;
+    queue->rear = (queue->rear + 1) % LINEAR_CAP;
+    queue->size++;
     return 1;
 }
 
-int push_back_deque(Deque *d, int value) {
-    if (d->size >= DEQUE_CAP) {
+int dequeue_queue(QueueInfo *queue, int *out_value)
+{
+    if (queue->size <= 0)
+    {
         return 0;
     }
 
-    d->data[d->rear] = value;
-    d->rear = (d->rear + 1) % DEQUE_CAP;
-    d->size++;
+    *out_value = queue->data[queue->front];
+    queue->front = (queue->front + 1) % LINEAR_CAP;
+    queue->size--;
     return 1;
 }
 
-int pop_front_deque(Deque *d, int *out_value) {
-    if (d->size <= 0) {
+int front_queue(QueueInfo *queue, int *out_value)
+{
+    if (queue->size <= 0)
+    {
         return 0;
     }
 
-    *out_value = d->data[d->front];
-    d->front = (d->front + 1) % DEQUE_CAP;
-    d->size--;
+    *out_value = queue->data[queue->front];
     return 1;
 }
 
-int pop_back_deque(Deque *d, int *out_value) {
-    int index;
-
-    if (d->size <= 0) {
-        return 0;
-    }
-
-    index = (d->rear - 1 + DEQUE_CAP) % DEQUE_CAP;
-    *out_value = d->data[index];
-    d->rear = index;
-    d->size--;
-    return 1;
-}
-
-void build_deque_frame(ProgramState *state, Structure *st, const char *operation, const char *note) {
+void build_queue_frame(ProgramState *state, QueueInfo *queue, const char *operation, const char *note)
+{
     Frame *frame;
-    char line[MAX_LINE_LEN];
-    char temp[MAX_LINE_LEN];
+    char line[MAX_LINE_TEXT];
+    char values_line[MAX_LINE_TEXT];
     int i;
     int index;
 
-    if (!st->watched || state->frame_count >= MAX_FRAMES) {
+    if (!queue->watched)
+    {
         return;
     }
 
-    frame = &state->frames[state->frame_count];
-    start_frame(frame, state, st, operation, note);
+    frame = start_frame(state, queue->name, operation, note);
 
-    snprintf(line, sizeof(line), "Deque: %s", st->name);
-    add_line(frame, line);
-
-    if (st->deque.size == 0) {
-        add_line(frame, "[empty]");
-    } else {
-        temp[0] = '\0';
-
-        for (i = 0; i < st->deque.size; i++) {
-            index = (st->deque.front + i) % DEQUE_CAP;
-
-            if (i == 0) {
-                snprintf(line, sizeof(line), "[%d]", st->deque.data[index]);
-            } else {
-                snprintf(line, sizeof(line), " <-> [%d]", st->deque.data[index]);
-            }
-
-            strncat(temp, line, sizeof(temp) - strlen(temp) - 1);
-        }
-
-        add_line(frame, temp);
-
-        snprintf(line, sizeof(line), "front = %d", st->deque.data[st->deque.front]);
-        add_line(frame, line);
-
-        index = (st->deque.rear - 1 + DEQUE_CAP) % DEQUE_CAP;
-        snprintf(line, sizeof(line), "rear  = %d", st->deque.data[index]);
-        add_line(frame, line);
+    if (frame == NULL)
+    {
+        return;
     }
 
-    state->frame_count++;
+    add_line_to_frame(frame, "Queue state:");
+
+    if (queue->size == 0)
+    {
+        add_line_to_frame(frame, "[empty]");
+        return;
+    }
+
+    values_line[0] = '\0';
+
+    for (i = 0; i < queue->size; i++)
+    {
+        index = (queue->front + i) % LINEAR_CAP;
+
+        if (i == 0)
+        {
+            snprintf(line, sizeof(line), "[%d]", queue->data[index]);
+        }
+        else
+        {
+            snprintf(line, sizeof(line), " -> [%d]", queue->data[index]);
+        }
+
+        strncat(values_line, line, sizeof(values_line) - strlen(values_line) - 1);
+    }
+
+    add_line_to_frame(frame, values_line);
+
+    snprintf(line, sizeof(line), "front = %d", queue->data[queue->front]);
+    add_line_to_frame(frame, line);
+
+    index = (queue->rear - 1 + LINEAR_CAP) % LINEAR_CAP;
+    snprintf(line, sizeof(line), "rear  = %d", queue->data[index]);
+    add_line_to_frame(frame, line);
+}
+
+void init_deque(DequeInfo *deque)
+{
+    deque->front = 0;
+    deque->rear = 0;
+    deque->size = 0;
+}
+
+int push_front_deque(DequeInfo *deque, int value)
+{
+    if (deque->size >= LINEAR_CAP)
+    {
+        return 0;
+    }
+
+    deque->front = (deque->front - 1 + LINEAR_CAP) % LINEAR_CAP;
+    deque->data[deque->front] = value;
+    deque->size++;
+    return 1;
+}
+
+int push_back_deque(DequeInfo *deque, int value)
+{
+    if (deque->size >= LINEAR_CAP)
+    {
+        return 0;
+    }
+
+    deque->data[deque->rear] = value;
+    deque->rear = (deque->rear + 1) % LINEAR_CAP;
+    deque->size++;
+    return 1;
+}
+
+int pop_front_deque(DequeInfo *deque, int *out_value)
+{
+    if (deque->size <= 0)
+    {
+        return 0;
+    }
+
+    *out_value = deque->data[deque->front];
+    deque->front = (deque->front + 1) % LINEAR_CAP;
+    deque->size--;
+    return 1;
+}
+
+int pop_back_deque(DequeInfo *deque, int *out_value)
+{
+    int index;
+
+    if (deque->size <= 0)
+    {
+        return 0;
+    }
+
+    index = (deque->rear - 1 + LINEAR_CAP) % LINEAR_CAP;
+    *out_value = deque->data[index];
+    deque->rear = index;
+    deque->size--;
+    return 1;
+}
+
+void build_deque_frame(ProgramState *state, DequeInfo *deque, const char *operation, const char *note)
+{
+    Frame *frame;
+    char line[MAX_LINE_TEXT];
+    char values_line[MAX_LINE_TEXT];
+    int i;
+    int index;
+
+    if (!deque->watched)
+    {
+        return;
+    }
+
+    frame = start_frame(state, deque->name, operation, note);
+
+    if (frame == NULL)
+    {
+        return;
+    }
+
+    add_line_to_frame(frame, "Deque state:");
+
+    if (deque->size == 0)
+    {
+        add_line_to_frame(frame, "[empty]");
+        return;
+    }
+
+    values_line[0] = '\0';
+
+    for (i = 0; i < deque->size; i++)
+    {
+        index = (deque->front + i) % LINEAR_CAP;
+
+        if (i == 0)
+        {
+            snprintf(line, sizeof(line), "[%d]", deque->data[index]);
+        }
+        else
+        {
+            snprintf(line, sizeof(line), " <-> [%d]", deque->data[index]);
+        }
+
+        strncat(values_line, line, sizeof(values_line) - strlen(values_line) - 1);
+    }
+
+    add_line_to_frame(frame, values_line);
+
+    snprintf(line, sizeof(line), "front = %d", deque->data[deque->front]);
+    add_line_to_frame(frame, line);
+
+    index = (deque->rear - 1 + LINEAR_CAP) % LINEAR_CAP;
+    snprintf(line, sizeof(line), "rear  = %d", deque->data[index]);
+    add_line_to_frame(frame, line);
 }

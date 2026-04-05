@@ -1,0 +1,40 @@
+﻿# create structures
+create stack s
+create stack s
+create queue q
+create deque d
+create avl t
+
+# choose what to visualize
+watch s
+watch q
+watch d
+watch t
+
+# stack
+push s 10
+push s 20
+peek s
+pop s
+
+# queue
+enqueue q 5
+enqueue q 8
+front q
+dequeue q
+
+# deque
+push_front d 3
+push_back d 7
+push_front d 1
+pop_back d
+pop_front d
+
+# avl
+insert t 30
+insert t 20
+insert t 10
+insert t 25
+insert t 40
+search t 25
+search t 99
